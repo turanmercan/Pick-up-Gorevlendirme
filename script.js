@@ -49,10 +49,12 @@ const predefinedTaskLocations = {
 
 // HTML elementlerini seçiyoruz
 const driversListDiv = document.getElementById('drivers-list');
-// const addDriverBtn = document.getElementById('add-driver-btn'); // Bu satır kaldırıldı
 const taskForm = document.getElementById('task-form');
 const taskDestinationInput = document.getElementById('task-destination');
 const assignmentResultDiv = document.getElementById('assignment-result');
+// Yeni eklenen şoför seçimi elementleri
+const driverSelect = document.getElementById('driver-select'); // YENİ
+const clearDriverSelectionBtn = document.getElementById('clear-driver-selection-btn'); // YENİ
 
 // Görev listesi DOM elementlerini doğrudan seçiyoruz
 const pendingTasksList = document.querySelector('#pending-tasks .task-list');
@@ -158,39 +160,6 @@ function renderDrivers() {
 }
 
 /**
- * Yeni bir şoför ekleme işlevi.
- * NOT: Bu fonksiyon HTML'de ilgili buton kaldırıldığı için şu an kullanılmıyor.
- * İsterseniz bir 'Şoför Ekle' butonu ekleyerek aktif edebilirsiniz.
- */
-/*
-function addDriver() {
-    let driverName = prompt("Şoförün adını girin:");
-    if (!driverName) return;
-
-    let pickupId = prompt("Pick-up numarasını/plakasını girin:");
-    if (!pickupId) return;
-
-    // Şoför adı veya plaka zaten var mı kontrol et
-    if (drivers.some(d => d.name.toLowerCase() === driverName.trim().toLowerCase() || d.pickupId.toLowerCase() === pickupId.trim().toLowerCase())) {
-        alert("Bu şoför adı veya plaka zaten mevcut!");
-        return;
-    }
-
-    const newDriver = {
-        id: Date.now().toString(), // Benzersiz ID
-        name: driverName.trim(),
-        pickupId: pickupId.trim(),
-        taskHistory: [] // Görev geçmişi
-    };
-
-    drivers.push(newDriver);
-    saveDataToLocalStorage(DRIVERS_STORAGE_KEY, drivers);
-    renderDrivers(); // Listeyi güncelle
-    alert(`${newDriver.name} şoförü ve ${newDriver.pickupId} pick-up'ı eklendi.`);
-}
-*/
-
-/**
  * Şoförü listeden ve localStorage'dan siler.
  * @param {string} driverId - Silinecek şoförün ID'si.
  */
@@ -214,6 +183,20 @@ function removeDriver(driverId) {
         alert("Şoför bulunamadı.");
     }
 }
+
+/**
+ * Şoförleri seçim kutusuna doldurur.
+ */
+function populateDriverSelect() {
+    driverSelect.innerHTML = '<option value="">Otomatik Seç (En Uygun)</option>'; // Varsayılan seçeneği koru
+    drivers.forEach(driver => {
+        const option = document.createElement('option');
+        option.value = driver.id;
+        option.textContent = driver.name;
+        driverSelect.appendChild(option);
+    });
+}
+
 
 // === Görev Atama Mantığı ===
 
@@ -301,7 +284,29 @@ function assignNewTask(event) {
     }
 
     const taskType = distanceToAssign >= 100 ? 'uzak' : 'yakın';
-    const assignedDriver = findBestDriverForTask(distanceToAssign);
+
+    let assignedDriver = null;
+    const selectedDriverId = driverSelect.value; // Seçilen şoförün ID'sini al
+
+    if (selectedDriverId) {
+        // Eğer bir şoför manuel olarak seçildiyse onu kullan
+        assignedDriver = drivers.find(d => d.id === selectedDriverId);
+        if (!assignedDriver) {
+            alert("Seçilen şoför bulunamadı.");
+            return;
+        }
+        // Manuel atama yapıldığında bile şoförün Bekliyor veya Yolda görevi olmamalı kontrolü
+        const hasActiveTask = assignedDriver.taskHistory.some(task =>
+            task.status === TASK_STATUSES.PENDING || task.status === TASK_STATUSES.ON_THE_WAY
+        );
+        if (hasActiveTask) {
+            alert(`${assignedDriver.name} şoförünün zaten bekleyen veya yolda bir görevi var. Lütfen başka bir şoför seçin veya otomatik atamayı kullanın.`);
+            return;
+        }
+    } else {
+        // Şoför seçilmediyse otomatik olarak en uygun şoförü bul
+        assignedDriver = findBestDriverForTask(distanceToAssign);
+    }
 
     if (assignedDriver) {
         assignedDriver.taskHistory.push({
@@ -318,16 +323,18 @@ function assignNewTask(event) {
         assignmentResultDiv.innerHTML = `
             <p><strong>Görev Atandı:</strong> ${destinationToAssign} (${distanceToAssign} km - ${taskType})</p>
             <p><strong>Atanan Şoför:</strong> ${assignedDriver.name} (${assignedDriver.pickupId})</p>
-            <p>Şoförün güncel görev geçmişi güncellendi. En az mesafe kat eden şoför otomatik seçildi.</p>
+            ${selectedDriverId ? '<p>Şoför manuel olarak seçildi.</p>' : '<p>En az mesafe kat eden şoför otomatik seçildi.</p>'}
+            <p>Şoförün güncel görev geçmişi güncellendi.</p>
         `;
         renderTaskHistory(); // Görev geçmişini ve durum tablolarını güncelle, bu da raporları güncelleyecek
     } else {
-        assignmentResultDiv.innerHTML = '<p>Şoför bulunamadı veya atanacak müsait şoför yok. Lütfen en az bir şoför eklediğinizden emin olun.</p>';
+        assignmentResultDiv.innerHTML = '<p>Şoför bulunamadı veya atanacak müsait şoför yok. Lütfen en az bir şoför eklediğinizden veya şoförlerin aktif görevleri olmadığından emin olun.</p>';
     }
 
     taskDestinationInput.value = '';
     taskDistanceManualInput.value = '';
     manualDistanceGroup.style.display = 'none';
+    driverSelect.value = ''; // Seçimi sıfırla
 }
 
 // === Görev Geçmişi Yönetimi ===
@@ -401,10 +408,6 @@ function updateTaskStatus(driverId, taskId, newStatus) {
     }
 
     task.status = newStatus;
-    // --- Hata Ayıklama Eklentisi: updateTaskStatus çağrıldığında yeni durumu konsola yazdır ---
-    console.log(`DEBUG: updateTaskStatus çağrıldı. Görev ID: ${taskId}, Yeni Durum: "${newStatus}"`);
-    console.log(`DEBUG: Görev nesnesindeki güncel durum: "${task.status}"`);
-    // --- Hata Ayıklama Eklentisi Sonu ---
     saveDataToLocalStorage(DRIVERS_STORAGE_KEY, drivers);
     renderDrivers();
     renderTaskHistory(); // Görev geçmişini tekrar çiz (bu da raporları güncelleyecek)
@@ -481,10 +484,6 @@ function renderTaskHistory() {
     }
 
     allTasks.forEach(task => {
-        // --- Hata Ayıklama Eklentisi: renderTaskHistory her görevi işlerken durumunu konsola yazdır ---
-        console.log(`DEBUG: renderTaskHistory - Görev ID: ${task.id}, İşlenen Durum: "${task.status}"`);
-        // --- Hata Ayıklama Eklentisi Sonu ---
-
         // Durum seçiciyi oluştur
         let statusOptionsHtml = '';
         for (const key in TASK_STATUSES) {
@@ -913,7 +912,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sayfa yüklendiğinde şoförleri localStorage'dan yükle
     const storedDrivers = loadDataFromLocalStorage(DRIVERS_STORAGE_KEY);
     if (storedDrivers.length > 0) {
-        // Eğer localStorage'da veri varsa, başlangıçtaki boş drivers dizisini temizle
+        // Eğer localStorage'da veri varsa, başlangıçtaki drivers dizisini temizle
         // ve localStorage'daki verilerle doldur.
         drivers.splice(0, drivers.length);
         storedDrivers.forEach(driver => {
@@ -936,8 +935,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderDrivers(); // Şoförleri ekranda göster
     renderTaskHistory(); // Geçmiş görevleri göster (bu da tüm raporları güncelleyecek)
     populateLocationDatalist(); // Lokasyon önerilerini datalist'e doldur
-
-    // Şoför ekleme butonu artık olmadığı için bu olay dinleyici kaldırıldı.
+    populateDriverSelect(); // YENİ: Şoför seçim kutusunu doldur
+    
+    // addDriverBtn kaldırıldığı için bu olay dinleyici kaldırıldı.
     // addDriverBtn.addEventListener('click', addDriver);
 
     // Görev atama formuna gönderme olayı
@@ -956,7 +956,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-// Eski görevleri temizle butonuna tıklama olayı
+    // Şoför seçimini iptal et butonuna tıklama olayı
+    if (clearDriverSelectionBtn) { // Butonun varlığını kontrol et
+        clearDriverSelectionBtn.addEventListener('click', () => {
+            driverSelect.value = ''; // Seçimi sıfırla
+            assignmentResultDiv.innerHTML = '<p>Şoför seçimi iptal edildi. Görev otomatik olarak en uygun şoföre atanacaktır.</p>';
+        });
+    }
+
+    // Eski görevleri temizle butonuna tıklama olayı
     const cleanOldTasksBtn = document.getElementById('clean-old-tasks-btn');
     if (cleanOldTasksBtn) {
         cleanOldTasksBtn.addEventListener('click', cleanOldTasks);
