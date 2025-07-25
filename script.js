@@ -1,7 +1,21 @@
 // script.js
 
 // === Genel Değişkenler ve DOM Elementleri ===
-const drivers = []; // Tüm şoför verilerini tutacak ana dizi
+// Başlangıç şoför verileri buraya eklendi.
+const drivers = [
+    { id: '101', name: 'Abdullah AVCI', pickupId: '06 CGV 233', taskHistory: [] },
+    { id: '102', name: 'Halil ÜREGEN', pickupId: '06 DMZ 696', taskHistory: [] },
+    { id: '103', name: 'İbrahim ATAR', pickupId: '06 CJB 815', taskHistory: [] },
+    { id: '104', name: 'İbrahim YILMAZ', pickupId: '06 CGU 771', taskHistory: [] },
+    { id: '105', name: 'Mehmet KÖYLÜ', pickupId: '06 CGU 847', taskHistory: [] },
+    { id: '106', name: 'Murat AVCI', pickupId: '06 CGU 856', taskHistory: [] },
+    { id: '107', name: 'Uğur Can ARAR', pickupId: '06 CGU 488', taskHistory: [] },
+    { id: '108', name: 'Yakup ÖZTÜRK', pickupId: '06 CGU 954', taskHistory: [] },
+    { id: '109', name: 'Zeki AKSU-Abdülbari ÖĞUREL', pickupId: '06 CFP 257', taskHistory: [] }
+    // İhtiyacınıza göre buraya daha fazla şoför ekleyebilirsiniz.
+    // Her bir şoför nesnesinin 'id' (benzersiz bir numara/string), 'name', 'pickupId'
+    // ve 'taskHistory' (boş bir dizi olarak) içerdiğinden emin olun.
+];
 const DRIVERS_STORAGE_KEY = 'pickupDrivers'; // localStorage için anahtar
 
 // Önceden tanımlanmış görev yerleri ve mesafeleri - ALFABETİK OLARAK SIRALANMIŞ HALİ
@@ -899,7 +913,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (driver.taskHistory) {
                 driver.taskHistory.forEach(task => {
                     if (!task.status) {
-                        task.status = TASK_STATUSES.PENDING;
+                        task.status = TASK_STATUSES.PENDEN;
                     }
                     // Eğer görev ID'si yoksa otomatik ID ata
                     if (!task.id) {
