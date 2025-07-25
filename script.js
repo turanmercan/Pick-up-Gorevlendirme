@@ -49,7 +49,7 @@ const predefinedTaskLocations = {
 
 // HTML elementlerini seçiyoruz
 const driversListDiv = document.getElementById('drivers-list');
-const addDriverBtn = document.getElementById('add-driver-btn');
+// const addDriverBtn = document.getElementById('add-driver-btn'); // Bu satır kaldırıldı
 const taskForm = document.getElementById('task-form');
 const taskDestinationInput = document.getElementById('task-destination');
 const assignmentResultDiv = document.getElementById('assignment-result');
@@ -159,7 +159,10 @@ function renderDrivers() {
 
 /**
  * Yeni bir şoför ekleme işlevi.
+ * NOT: Bu fonksiyon HTML'de ilgili buton kaldırıldığı için şu an kullanılmıyor.
+ * İsterseniz bir 'Şoför Ekle' butonu ekleyerek aktif edebilirsiniz.
  */
+/*
 function addDriver() {
     let driverName = prompt("Şoförün adını girin:");
     if (!driverName) return;
@@ -185,6 +188,7 @@ function addDriver() {
     renderDrivers(); // Listeyi güncelle
     alert(`${newDriver.name} şoförü ve ${newDriver.pickupId} pick-up'ı eklendi.`);
 }
+*/
 
 /**
  * Şoförü listeden ve localStorage'dan siler.
@@ -267,7 +271,7 @@ function findBestDriverForTask(currentTaskDistance) {
 
 /**
  * Yeni görev atamasını yapar.
- * @param {Event} smacked - Form submit olayı.
+ * @param {Event} event - Form submit olayı.
  */
 function assignNewTask(event) {
     event.preventDefault(); // Sayfanın yeniden yüklenmesini engelle
@@ -909,11 +913,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sayfa yüklendiğinde şoförleri localStorage'dan yükle
     const storedDrivers = loadDataFromLocalStorage(DRIVERS_STORAGE_KEY);
     if (storedDrivers.length > 0) {
+        // Eğer localStorage'da veri varsa, başlangıçtaki boş drivers dizisini temizle
+        // ve localStorage'daki verilerle doldur.
+        drivers.splice(0, drivers.length);
         storedDrivers.forEach(driver => {
             if (driver.taskHistory) {
                 driver.taskHistory.forEach(task => {
                     if (!task.status) {
-                        task.status = TASK_STATUSES.PENDEN;
+                        task.status = TASK_STATUSES.PENDING;
                     }
                     // Eğer görev ID'si yoksa otomatik ID ata
                     if (!task.id) {
@@ -930,8 +937,8 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTaskHistory(); // Geçmiş görevleri göster (bu da tüm raporları güncelleyecek)
     populateLocationDatalist(); // Lokasyon önerilerini datalist'e doldur
 
-    // Şoför ekleme butonuna tıklama olayı
-    addDriverBtn.addEventListener('click', addDriver);
+    // Şoför ekleme butonu artık olmadığı için bu olay dinleyici kaldırıldı.
+    // addDriverBtn.addEventListener('click', addDriver);
 
     // Görev atama formuna gönderme olayı
     taskForm.addEventListener('submit', assignNewTask);
