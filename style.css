@@ -1,0 +1,227 @@
+/* Genel stiller */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f4f4f4;
+    color: #333;
+}
+
+header {
+    background-color: #4CAF50;
+    color: white;
+    padding: 15px 0;
+    text-align: center;
+    margin-bottom: 20px;
+    border-radius: 8px;
+}
+
+main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+section {
+    margin-bottom: 30px;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #fff;
+}
+
+h2 {
+    color: #4CAF50;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+/* Buton stilleri */
+button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-right: 10px;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+/* Form stilleri */
+form {
+    margin-bottom: 20px;
+}
+
+form label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+form input[type="text"],
+form input[type="number"] {
+    width: calc(100% - 22px); /* Padding ve border hesaplandı */
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+#assignment-result {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #e6ffe6;
+    border: 1px solid #a4edb4;
+    border-radius: 5px;
+    color: #333;
+}
+
+#assignment-result p strong {
+    color: #2e8b57;
+}
+
+/* Şoför kartları */
+#drivers-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Daha responsive */
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.driver-card {
+    background-color: #f9f9f9;
+    padding: 15px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.driver-card h3 {
+    margin-top: 0;
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+}
+
+.driver-card p {
+    margin: 5px 0;
+}
+
+/* Görev Geçmişi (Yeni Kanban Benzeri Yapı) */
+.task-boards-container {
+    display: flex; /* Sütunları yan yana sırala */
+    gap: 20px; /* Sütunlar arası boşluk */
+    flex-wrap: wrap; /* Küçük ekranlarda alt alta geçsin */
+    justify-content: center; /* Sütunları ortala */
+}
+
+.task-board-column {
+    flex: 1; /* Esnek boyutlandırma */
+    min-width: 250px; /* Minimum sütun genişliği */
+    max-width: 300px; /* Maksimum sütun genişliği */
+    background-color: #f0f0f0;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    display: flex; /* İçindeki elemanları da flex yap */
+    flex-direction: column; /* İçindeki elemanları dikey sırala */
+}
+
+.task-board-column h3 {
+    text-align: center;
+    color: #4CAF50;
+    margin-top: 0;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ccc;
+}
+
+.task-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto; /* Listeyi kaydırılabilir yap */
+    max-height: 400px; /* Yüksekliği sınırlayalım */
+}
+
+.task-list li {
+    background-color: #fff;
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    font-size: 14px;
+    line-height: 1.4;
+    position: relative; /* Butonlar için konumlandırma */
+}
+
+.task-list li strong {
+    color: #333;
+}
+
+.task-list li select.task-status-select {
+    width: 100%; /* Seçiciyi geniş yap */
+    padding: 8px;
+    margin-top: 10px;
+    margin-bottom: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #fefefe;
+    font-size: 13px;
+    box-sizing: border-box; /* Padding ve border dahil genişlik */
+}
+
+.task-list li button {
+    padding: 5px 10px;
+    font-size: 12px;
+    margin-top: 5px;
+    /* position: absolute; /* Butonları sağa yasla */
+    /* right: 10px; */
+    /* top: 10px; */
+    background-color: #5cb85c;
+}
+
+.task-list li button.edit-task-btn {
+    background-color: #f0ad4e; /* Sarımsı renk */
+    margin-right: 5px;
+}
+
+.task-list li button.edit-task-btn:hover {
+    background-color: #ec971f;
+}
+
+.task-list li button.delete-task-btn {
+    background-color: #d9534f; /* Kırmızı renk */
+}
+
+.task-list li button.delete-task-btn:hover {
+    background-color: #c9302c;
+}
+
+/* Her durum için farklı renkler (isteğe bağlı) */
+#pending-tasks { border-color: #f0ad4e; background-color: #fff8eb; } /* Turuncumsu */
+#on-the-way-tasks { border-color: #5cb85c; background-color: #edfff2; } /* Yeşilimsi */
+#completed-tasks { border-color: #4CAF50; background-color: #e6ffe6; } /* Daha koyu yeşil */
+#canceled-tasks { border-color: #d9534f; background-color: #ffebe6; } /* Kırmızımsı */
+
+/* Footer stilleri */
+footer {
+    text-align: center;
+    padding: 20px;
+    margin-top: 30px;
+    color: #666;
+    font-size: 0.9em;
+    border-top: 1px solid #eee;
+}
