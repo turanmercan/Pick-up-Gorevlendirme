@@ -135,7 +135,7 @@ function renderDrivers() {
         let historyText = 'Henüz görev almadı.';
         if (driver.taskHistory && driver.taskHistory.length > 0) {
             // Sadece tamamlanmış görevlerin km'sini göster
-            const lastCompletedTasks = driver.taskHistory.filter(task => task.status === TASK_STATUSES.COMPLETED).slice(-3);
+            const lastCompletedTasks = driver.taskHistory.filter(task => task.status === TASK_STATUSES.COMPLETED).slice(-3); // Son 3 görevi göster
             const formattedTasks = lastCompletedTasks.map(task => `${task.distance} km (${task.type})`).join(', ');
             historyText = lastCompletedTasks.length > 0 ? `Son tamamlanan görevler: ${formattedTasks}` : 'Henüz tamamlanmış görevi yok.';
         }
@@ -152,11 +152,14 @@ function renderDrivers() {
             });
         }
 
+        // Şoför kartının içeriğini oluştur
         driverCard.innerHTML = `
             <h3>${driver.name}</h3>
             <p><strong>Pick-up:</strong> ${driver.pickupId}</p>
-            <p><strong>Geçmiş:</strong> ${historyText}</p>
             <p><strong>Son 30 Gün Toplam Km:</strong> ${totalDistanceLast30Days} km</p>
+            <div class="task-history-tooltip">
+                <p><strong>Geçmiş:</strong> ${historyText}</p>
+            </div>
         `;
         driversListDiv.appendChild(driverCard);
     });
