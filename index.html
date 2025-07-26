@@ -3,489 +3,620 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pick-up Görev Yönetimi</title>
+    <title>Pick-Up ve Şoför Yönetim Sistemi</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* GENEL VE RESET STİLLERİ */
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Daha modern font */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
-            padding: 20px;
-            background-color: #e0f2f7; /* Açık mavi tonunda bir arka plan */
+            padding: 0;
+            background-color: #f4f7f6;
             color: #333;
-            line-height: 1.6;
-            min-height: 100vh; /* Footer'ın en alta yapışması için */
             display: flex;
             flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: #2c3e50; /* Koyu Mavi-Gri */
+            color: #ecf0f1; /* Açık Gri */
+            padding: 20px 0;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 2.5em;
         }
 
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background-color: #ffffff;
+            width: 90%;
+            max-width: 1400px;
+            margin: 20px auto;
+            background-color: #fff;
             padding: 30px;
-            border-radius: 12px; /* Daha yuvarlak köşeler */
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15); /* Daha belirgin gölge */
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
             flex-grow: 1; /* İçeriğin dikeyde büyümesini sağlar */
         }
 
-        h1, h2, h3 {
-            color: #2c3e50; /* Koyu gri/mavi ton */
-            text-align: center;
-            margin-bottom: 25px;
-            font-weight: 600; /* Kalınlık */
-        }
-        h1 { font-size: 2.5em; }
-        h2 { font-size: 1.8em; }
-        h3 { font-size: 1.4em; }
-
-        .section {
-            background-color: #f7fcfd; /* Çok açık mavi/beyaz arka plan */
-            padding: 25px;
-            border-radius: 10px;
+        .main-section {
+            display: grid;
+            grid-template-columns: 2fr 1fr; /* Şoför listesi %66, görev atama %33 */
+            gap: 30px;
             margin-bottom: 30px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); /* Hafif belirgin gölge */
+        }
+
+        .drivers-section {
+            background-color: #fdfdfd;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .drivers-section h2 {
+            color: #34495e; /* Koyu Mavi */
+            border-bottom: 2px solid #3498db; /* Mavi */
+            padding-bottom: 10px;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+
+        #drivers-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); /* Esnek kart düzeni */
+            gap: 20px;
+        }
+
+        .driver-card {
+            background-color: #eaf2f8; /* Çok Açık Mavi */
+            border: 1px solid #d4e6f1; /* Daha koyu açık mavi */
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* İçeriği dikeyde yayar */
+            position: relative; /* Tooltip'in göreceli konumlandırılması için */
+            overflow: visible; /* Tooltip'in kart dışına taşabilmesi için */
+        }
+
+        .driver-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }
+
+        .driver-card h3 {
+            color: #2c3e50;
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+            border-bottom: 1px dashed #aeb6bf;
+            padding-bottom: 5px;
+        }
+
+        .driver-card p {
+            margin: 5px 0;
+            font-size: 0.95em;
+            line-height: 1.4;
+        }
+
+        .task-assignment-section {
+            background-color: #fdfdfd;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .task-assignment-section h2 {
+            color: #34495e;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.8em;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         label {
             display: block;
-            margin-bottom: 8px;
-            font-weight: 600; /* Kalın etiketler */
+            margin-bottom: 5px;
+            font-weight: bold;
             color: #555;
         }
 
         input[type="text"],
         input[type="number"],
-        input[type="date"],
         select {
-            width: calc(100% - 24px); /* Padding ve border hesaplandı */
-            padding: 12px; /* Daha geniş padding */
-            border: 1px solid #cce7ed; /* Açık mavi kenarlık */
-            border-radius: 6px;
-            font-size: 1.05rem;
-            box-sizing: border-box;
-            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            width: calc(100% - 20px);
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
+            box-sizing: border-box; /* Padding'i genişliğin içine dahil et */
         }
+
         input[type="text"]:focus,
         input[type="number"]:focus,
-        input[type="date"]:focus,
         select:focus {
-            border-color: #007bff;
-            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+            border-color: #3498db;
+            box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
             outline: none;
         }
 
         button {
-            background-color: #28a745; /* Canlı yeşil */
+            background-color: #28a745; /* Yeşil */
             color: white;
-            padding: 14px 28px; /* Daha büyük butonlar */
+            padding: 12px 20px;
             border: none;
-            border-radius: 8px;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 1.1rem;
-            font-weight: 600;
+            font-size: 1.1em;
             transition: background-color 0.3s ease, transform 0.2s ease;
-            box-shadow: 0 4px 10px rgba(40, 167, 69, 0.3); /* Yeşil butona özel gölge */
         }
 
         button:hover {
-            background-color: #218838;
-            transform: translateY(-2px); /* Hafif yukarı kalkma efekti */
-            box-shadow: 0 6px 15px rgba(40, 167, 69, 0.4);
+            background-color: #218838; /* Koyu Yeşil */
+            transform: translateY(-2px);
         }
 
-        /* Yeni şoför ekle butonu kaldırıldığı için bu stil artık gerekmeyebilir ancak bırakabiliriz */
-        #add-driver-btn {
-            background-color: #007bff; /* Mavi Şoför Ekle butonu */
-            box-shadow: 0 4px 10px rgba(0, 123, 255, 0.3);
-        }
-        #add-driver-btn:hover {
-            background-color: #0056b3;
-            box-shadow: 0 6px 15px rgba(0, 123, 255, 0.4);
+        button:active {
+            transform: translateY(0);
         }
 
-        .task-actions .delete-task-btn,
-        .data-management-section .action-button,
-        .action-button-secondary { /* .action-button-secondary için stil */
-            background-color: #dc3545; /* Kırmızı Sil butonu */
-            box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3);
+        .secondary-btn {
+            background-color: #6c757d; /* Gri */
+            margin-left: 10px;
         }
-        .task-actions .delete-task-btn:hover,
-        .data-management-section .action-button:hover,
-        .action-button-secondary:hover { /* .action-button-secondary için hover stil */
-            background-color: #c82333;
-            box-shadow: 0 6px 15px rgba(220, 53, 69, 0.4);
-        }
-        .task-actions .edit-task-btn {
-            background-color: #ffc107; /* Sarı Düzenle butonu */
-            color: #333;
-            box-shadow: 0 4px 10px rgba(255, 193, 7, 0.3);
-        }
-        .task-actions .edit-task-btn:hover {
-            background-color: #e0a800;
-            box-shadow: 0 6px 15px rgba(255, 193, 7, 0.4);
+
+        .secondary-btn:hover {
+            background-color: #5a6268; /* Koyu Gri */
         }
 
         #assignment-result {
             margin-top: 25px;
-            padding: 18px;
-            background-color: #d4edda; /* Açık yeşil arka plan */
-            border: 1px solid #c3e6cb;
+            padding: 15px;
+            background-color: #e9f5e9; /* Açık Yeşil */
+            border: 1px solid #d4edda; /* Daha koyu açık yeşil */
             border-radius: 8px;
-            color: #155724; /* Koyu yeşil yazı */
-            text-align: center;
-            font-weight: 500;
+            color: #155724; /* Koyu Yeşil Metin */
         }
 
-        /* ŞOFÖR KARTLARI */
-        .drivers-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            justify-content: center;
-            margin-top: 20px;
+        #assignment-result p {
+            margin: 5px 0;
         }
 
-        .driver-card {
-            background-color: #ffffff; /* Beyaz arka plan */
-            border: 1px solid #e0eaf0; /* Açık kenarlık */
-            border-radius: 10px;
+        #manual-distance-group {
+            display: none; /* Başlangıçta gizle */
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border: 1px dashed #ddd;
+            border-radius: 5px;
+        }
+
+        /* Görev Takibi Bölümü */
+        .task-tracking-section {
+            margin-top: 30px;
             padding: 20px;
-            width: 100%;
-            max-width: 300px; /* Biraz daha geniş */
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-            text-align: center;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .driver-card:hover {
-            transform: translateY(-5px); /* Hafif yukarı kalkma */
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+            background-color: #fdfdfd;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
         }
 
-        .driver-card h3 {
+        .task-tracking-section h2 {
+            color: #34495e;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
             margin-top: 0;
-            color: #007bff; /* Mavi şoför adı */
-            margin-bottom: 10px;
-        }
-        .driver-card p {
-            margin: 8px 0;
-            font-size: 0.95rem;
+            margin-bottom: 20px;
+            font-size: 1.8em;
         }
 
-
-        /* GÖREV SÜTUNLARI */
         .task-columns {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 25px; /* Sütunlar arası boşluk */
-            margin-top: 25px;
-            justify-content: center;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* 4 sütunlu esnek yapı */
+            gap: 20px;
         }
 
         .task-column {
-            flex: 1;
-            min-width: 280px; /* Minimum genişlik */
-            background-color: #ffffff;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            max-height: 550px; /* Sütunlar için max yükseklik artırıldı */
-            overflow-y: auto;
-            border-top: 5px solid; /* Üst kenarlık renkli olsun */
+            background-color: #eef4f8; /* Çok açık mavi */
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            min-height: 250px; /* Sütunların minimum yüksekliği */
+            display: flex;
+            flex-direction: column;
         }
-        #pending-tasks { border-top-color: #ffc107; } /* Sarı */
-        #on-the-way-tasks { border-top-color: #007bff; } /* Mavi */
-        #completed-tasks { border-top-color: #28a745; } /* Yeşil */
-        #canceled-tasks { border-top-color: #dc3545; } /* Kırmızı */
-
 
         .task-column h3 {
-            text-align: center;
             margin-top: 0;
-            padding-bottom: 12px;
-            border-bottom: 1px solid #e9ecef;
+            margin-bottom: 15px;
+            color: #34495e;
             font-size: 1.3em;
-            color: #444;
+            text-align: center;
         }
 
         .task-list {
             list-style: none;
             padding: 0;
             margin: 0;
+            flex-grow: 1;
         }
 
         .task-list li {
-            background-color: #fcfdfe; /* Çok açık arka plan */
-            border: 1px solid #ebf4f8; /* İnce, hafif kenarlık */
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 12px; /* Daha fazla boşluk */
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-            font-size: 0.9rem;
+            background-color: #fcfdff;
+            border: 1px solid #dce4eb;
+            border-radius: 6px;
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            font-size: 0.9em;
             line-height: 1.5;
-            transition: transform 0.1s ease;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
-        .task-list li:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.08);
-        }
-        .task-list li strong {
-            color: #495057;
-        }
-        .task-list li .no-task {
-            color: #888;
+        
+        .task-list li.no-task {
             text-align: center;
+            color: #666;
             font-style: italic;
-            padding: 15px 0;
-            background-color: transparent;
-            box-shadow: none;
+            padding: 20px;
+        }
+
+        .task-list li strong {
+            color: #2c3e50;
         }
 
         .task-status-select {
-            margin-top: 10px;
-            padding: 6px;
-            font-size: 0.9rem;
-            border-radius: 5px;
-            border: 1px solid #b3d1da;
-            background-color: #eaf6f9;
+            width: 100%;
+            padding: 8px;
+            margin-top: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #fff;
+            font-size: 0.9em;
         }
-        .task-actions button {
+
+        .task-actions {
             margin-top: 10px;
-            margin-right: 8px;
-            padding: 8px 15px;
-            font-size: 0.9rem;
-            border-radius: 5px;
+            text-align: right;
         }
+
+        .task-actions button,
+        .task-actions .complete-checkbox-label input[type="checkbox"] {
+            padding: 6px 10px;
+            font-size: 0.8em;
+            margin-left: 5px;
+            cursor: pointer;
+        }
+
+        .task-actions .delete-task-btn {
+            background-color: #dc3545; /* Kırmızı */
+        }
+
+        .task-actions .delete-task-btn:hover {
+            background-color: #c82333; /* Koyu Kırmızı */
+        }
+
+        .task-actions .edit-task-btn {
+            background-color: #007bff; /* Mavi */
+        }
+
+        .task-actions .edit-task-btn:hover {
+            background-color: #0056b3; /* Koyu Mavi */
+        }
+
         .complete-checkbox-label {
             display: inline-flex;
             align-items: center;
-            font-size: 0.9rem;
-            margin-left: 10px;
-            color: #555;
+            font-size: 0.9em;
+            color: #333;
             cursor: pointer;
-        }
-        .complete-task-checkbox {
-            width: auto;
-            margin-right: 8px;
+            margin-right: 10px;
         }
 
-        hr {
-            border: 0;
-            height: 1px;
-            background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0));
-            margin: 40px 0;
+        .complete-checkbox-label input[type="checkbox"] {
+            margin-right: 5px;
+            width: 16px;
+            height: 16px;
+            vertical-align: middle;
         }
 
-        /* Raporlar Bölümü CSS */
+
+        /* Raporlar Bölümü */
         .reports-section {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 25px; /* Grafikler arası boşluk */
-            margin-top: 25px;
-            justify-content: center;
-        }
-        .chart-container {
-            width: 100%;
-            max-width: 500px; /* Daha önceki genişliğe döndü */
-            background-color: #ffffff;
-            padding: 25px;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-            max-height: 400px; /* Sabit yükseklik */
-            overflow-y: auto;
-        }
-        .chart-container h3 {
-             margin-top: 0;
-             margin-bottom: 20px;
-             font-size: 1.25em;
-             color: #333;
-        }
-        canvas {
-            max-width: 100%;
-            height: auto;
-        }
-
-        /* Veri Yönetimi Bölümü CSS */
-        .data-management-section {
-            background-color: #f7fcfd; /* Raporlarla aynı arka plan */
-            padding: 25px;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
             margin-top: 30px;
-            text-align: center;
-        }
-        .data-management-section .input-group {
-            margin-bottom: 20px;
-            display: block;
-        }
-        .data-management-section label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-        .data-management-section input[type="date"] {
-            width: auto; /* Tarih alanı otomatik genişlik alsın */
-            min-width: 200px; /* Minimum genişlik */
-            text-align: center;
-        }
-
-        /* FOOTER STİLLERİ */
-        footer {
-            margin-top: 40px; /* İçerikle footer arasında boşluk */
             padding: 20px;
-            text-align: center;
-            background-color: #2c3e50; /* Koyu gri/mavi */
-            color: #ecf0f1; /* Açık gri yazı */
-            border-top: 5px solid #28a745; /* Yeşil bir çizgi */
-            font-size: 0.9rem;
-            border-radius: 8px 8px 0 0; /* Üst köşeler yuvarlak */
-        }
-        footer p {
-            margin: 5px 0;
-        }
-        footer a {
-            color: #007bff;
-            text-decoration: none;
-        }
-        footer a:hover {
-            text-decoration: underline;
+            background-color: #fdfdfd;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
         }
 
-        /* Responsive Ayarlamalar */
-        @media (max-width: 768px) {
-            .container {
-                padding: 15px;
-            }
-            .section {
-                padding: 15px;
+        .reports-section h2 {
+            color: #34495e;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+
+        .chart-container {
+            width: 100%; /* Kapsayıcıyı tam genişlikte yapar */
+            height: 400px; /* Grafiğin yüksekliği */
+            margin-bottom: 30px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            padding: 15px;
+            box-sizing: border-box; /* Padding'i genişliğin içine dahil et */
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Eski Görevleri Temizleme */
+        .cleanup-section {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #fdfdfd;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start; /* İçeriği sola yasla */
+            gap: 15px;
+        }
+
+        .cleanup-section h2 {
+            color: #34495e;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+            width: 100%; /* Başlığın tam genişlikte olmasını sağlar */
+        }
+
+        .cleanup-section p {
+            margin: 0;
+            color: #555;
+            font-size: 1em;
+        }
+
+        .cleanup-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px; /* Elemanlar arasına boşluk bırak */
+            width: 100%; /* Kontrollerin tam genişlikte olmasını sağlar */
+            flex-wrap: wrap; /* Küçük ekranlarda alta geçmesini sağlar */
+        }
+
+        .cleanup-controls input[type="date"] {
+            flex-grow: 1; /* Alanı doldurur */
+            max-width: 200px; /* Maksimum genişlik */
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
+            box-sizing: border-box;
+        }
+
+        .cleanup-controls button {
+            background-color: #ffc107; /* Sarı */
+            color: #333;
+            border: none;
+            padding: 10px 15px;
+            font-size: 1em;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .cleanup-controls button:hover {
+            background-color: #e0a800; /* Koyu Sarı */
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: 30px;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            font-size: 0.9em;
+            box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Responsive Tasarım */
+        @media (max-width: 992px) {
+            .main-section {
+                grid-template-columns: 1fr; /* Tek sütuna düşür */
             }
             .task-columns {
-                flex-direction: column; /* Küçük ekranlarda sütunları alt alta diz */
-                gap: 15px;
+                grid-template-columns: 1fr; /* Görev sütunlarını tek sütuna düşür */
             }
-            .task-column {
-                min-width: unset;
-                width: 100%;
-                max-height: 400px; /* Küçük ekranlarda da kaydırma olsun */
+            .container {
+                padding: 20px;
             }
-            .driver-card, .chart-container {
+        }
+
+        @media (max-width: 576px) {
+            header h1 {
+                font-size: 1.8em;
+            }
+            .container {
+                width: 95%;
+                padding: 15px;
+            }
+            .drivers-section,
+            .task-assignment-section,
+            .task-tracking-section,
+            .reports-section,
+            .cleanup-section {
+                padding: 15px;
+            }
+            input[type="text"],
+            input[type="number"],
+            select,
+            button {
+                font-size: 0.9em;
+                padding: 10px;
+            }
+            .task-actions button {
+                padding: 5px 8px;
+            }
+            .cleanup-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .cleanup-controls input[type="date"] {
                 max-width: 100%;
             }
-            h1 { font-size: 2em; }
-            h2 { font-size: 1.5em; }
-            h3 { font-size: 1.2em; }
-            button {
-                padding: 12px 20px;
-                font-size: 1rem;
-            }
-            input[type="text"], input[type="number"], input[type="date"], select {
-                width: calc(100% - 18px);
-            }
-            .data-management-section input[type="date"] {
-                width: 100%;
-            }
+        }
+
+        /* YENİ EKLENEN CSS KODLARI */
+        .driver-card {
+            position: relative; /* Tooltip'in göreceli konumlandırılması için */
+            /* Diğer driver-card stilleriniz */
+            overflow: visible; /* Tooltip'in kart dışına taşabilmesi için */
+        }
+
+        .task-history-tooltip {
+            visibility: hidden; /* Başlangıçta gizli */
+            opacity: 0; /* Başlangıçta tam şeffaf */
+            width: 250px; /* Tooltip genişliği */
+            background-color: #333;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 1; /* Diğer elementlerin üzerinde görünmesini sağlar */
+            bottom: 100%; /* Kartın üstünde konumlandır */
+            left: 50%;
+            margin-left: -125px; /* (Genişliğin yarısı) - Ortalamak için */
+            transition: opacity 0.3s, visibility 0.3s; /* Geçiş efekti */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); /* Hafif gölge */
+            font-size: 0.9em; /* Yazı boyutu */
+            white-space: normal; /* İçeriğin kaymasını engelle */
+        }
+
+        .task-history-tooltip::after {
+            content: " ";
+            position: absolute;
+            top: 100%; /* Tooltip'in altında üçgen oluşturur */
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+
+        .driver-card:hover .task-history-tooltip {
+            visibility: visible; /* Hover'da görünür */
+            opacity: 1; /* Hover'da tam opak */
         }
     </style>
 </head>
 <body>
+    <header>
+        <h1>Pick-Up ve Şoför Yönetim Sistemi</h1>
+    </header>
+
     <div class="container">
-        <h1>Pick-up Görev Yönetim Sistemi</h1>
-
-        <div class="section">
-            <h2>Şoför Yönetimi</h2>
-            <div id="drivers-list" class="drivers-list">
-                </div>
+        <div class="main-section">
+            <div class="drivers-section">
+                <h2>Şoför Yönetimi</h2>
+                <div id="drivers-list">
+                    </div>
             </div>
 
-        <div class="section">
-            <h2>Yeni Görev Ata</h2>
-            <form id="task-form">
-                <div class="form-group">
-                    <label for="task-destination">Görev Yeri:</label>
-                    <input type="text" id="task-destination" list="predefined-locations" placeholder="Görev yerini seçin veya Diğer yazın" required>
-                    <datalist id="predefined-locations"></datalist>
-                </div>
-                <div class="form-group" id="manual-distance-group" style="display: none;">
-                    <label for="task-distance-manual">Mesafe (KM):</label>
-                    <input type="number" id="task-distance-manual" placeholder="Mesafeyi girin (örn: 50)" min="0">
-                </div>
-
-                <div class="form-group">
-                    <label for="driver-select">Şoför Seç (İsteğe Bağlı):</label>
-                    <select id="driver-select">
-                        <option value="">Otomatik Seç (En Uygun)</option>
-                        </select>
-                    <button type="button" id="clear-driver-selection-btn" class="action-button-secondary">Şoför Seçimini İptal Et</button>
-                </div>
-                <button type="submit">Görev Ata</button>
-            </form>
-            <div id="assignment-result">
-                </div>
-        </div>
-
-        <hr>
-
-        <h2>Görev Geçmişi</h2>
-        <div class="task-columns">
-            <div class="task-column" id="pending-tasks">
-                <h3>Bekleyen Görevler</h3>
-                <ul class="task-list">
-                    </ul>
-            </div>
-            <div class="task-column" id="on-the-way-tasks">
-                <h3>Yolda Görevler</h3>
-                <ul class="task-list">
-                    </ul>
-            </div>
-            <div class="task-column" id="completed-tasks">
-                <h3>Tamamlandı</h3>
-                <ul class="task-list">
-                    </ul>
-            </div>
-            <div class="task-column" id="canceled-tasks">
-                <h3>İptal Edildi</h3>
-                <ul class="task-list">
-                    </ul>
+            <div class="task-assignment-section">
+                <h2>Yeni Görev Ata</h2>
+                <form id="task-form">
+                    <div class="form-group">
+                        <label for="task-destination">Görev Yeri:</label>
+                        <input type="text" id="task-destination" list="predefined-locations" placeholder="Görev yerini seçin veya yazın" required>
+                        <datalist id="predefined-locations"></datalist>
+                    </div>
+                    <div class="form-group" id="manual-distance-group">
+                        <label for="task-distance-manual">Mesafe (km):</label>
+                        <input type="number" id="task-distance-manual" placeholder="Mesafeyi girin (km)">
+                    </div>
+                    <div class="form-group">
+                        <label for="driver-select">Şoför Seç (İsteğe Bağlı):</label>
+                        <select id="driver-select">
+                            <option value="">Otomatik Seç (En Uygun)</option>
+                            </select>
+                        <button type="button" id="clear-driver-selection-btn" class="secondary-btn">Seçimi İptal Et</button>
+                    </div>
+                    <button type="submit">Görev Ata</button>
+                </form>
+                <div id="assignment-result">
+                    </div>
             </div>
         </div>
 
-        <hr>
-
-        <h2>Raporlar ve İstatistikler</h2>
+        <div class="task-tracking-section">
+            <h2>Görev Takibi</h2>
+            <div class="task-columns">
+                <div class="task-column" id="pending-tasks">
+                    <h3>Bekleyen Görevler</h3>
+                    <ul class="task-list">
+                        </ul>
+                </div>
+                <div class="task-column" id="on-the-way-tasks">
+                    <h3>Yoldaki Görevler</h3>
+                    <ul class="task-list">
+                        </ul>
+                </div>
+                <div class="task-column" id="completed-tasks">
+                    <h3>Tamamlanan Görevler</h3>
+                    <ul class="task-list">
+                        </ul>
+                </div>
+                <div class="task-column" id="canceled-tasks">
+                    <h3>İptal Edilen Görevler</h3>
+                    <ul class="task-list">
+                        </ul>
+                </div>
+            </div>
+        </div>
 
         <div class="reports-section">
-            <div class="chart-container">
-                <h3>Şoför Başına Toplam Km (Son 30 Gün)</h3>
-                <canvas id="driverKmChart"></canvas>
-            </div>
-
-            <div class="chart-container">
-                <h3>Görev Durumu Dağılımı</h3>
-                <canvas id="taskStatusChart"></canvas>
-            </div>
-
-            <div class="chart-container">
-                <h3>Görev Yeri Yoğunluğu</h3>
-                <canvas id="taskLocationDensityChart"></canvas>
+            <h2>Raporlar</h2>
+            <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+                <div class="chart-container" style="flex: 1; min-width: 400px;">
+                    <h3>Şoför Km Dağılımı (Son 30 Gün)</h3>
+                    <canvas id="driverKmChart"></canvas>
+                </div>
+                <div class="chart-container" style="flex: 1; min-width: 400px;">
+                    <h3>Görev Durumu Dağılımı</h3>
+                    <canvas id="taskStatusChart"></canvas>
+                </div>
+                <div class="chart-container" style="flex: 1; min-width: 400px;">
+                    <h3>Görev Yeri Yoğunluğu</h3>
+                    <canvas id="taskLocationDensityChart"></canvas>
+                </div>
             </div>
         </div>
 
-        <hr>
-
-        <h2>Geçmiş Veri Yönetimi</h2>
-        <div class="data-management-section">
-            <p>Belirlediğiniz tarihten eski, "Tamamlandı" veya "İptal Edildi" durumundaki görevleri temizleyin.</p>
-            <div class="input-group">
-                <label for="archive-date">Bu tarihten önceki görevleri temizle:</label>
+        <div class="cleanup-section">
+            <h2>Eski Görevleri Temizle</h2>
+            <p>Seçilen tarihten önceki tüm "Tamamlandı" ve "İptal Edildi" görevlerini kalıcı olarak siler.</p>
+            <div class="cleanup-controls">
+                <label for="archive-date">Tarih Seçin:</label>
                 <input type="date" id="archive-date">
+                <button id="clean-old-tasks-btn">Eski Görevleri Temizle</button>
             </div>
-            <button id="clean-old-tasks-btn" class="action-button">Eski Görevleri Temizle</button>
         </div>
-
     </div>
 
     <footer>
