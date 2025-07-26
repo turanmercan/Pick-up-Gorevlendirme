@@ -122,8 +122,10 @@ function renderDrivers() {
     }
 
     const today = new Date();
+    today.setHours(0, 0, 0, 0); // Bugünün başlangıcı
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);
+    thirtyDaysAgo.setHours(0, 0, 0, 0); // 30 gün öncenin başlangıcı
 
     // Şoförleri ekranda listele
     drivers.forEach(driver => {
@@ -143,6 +145,7 @@ function renderDrivers() {
         if (driver.taskHistory) {
             driver.taskHistory.forEach(task => {
                 const taskDate = new Date(task.date);
+                taskDate.setHours(0, 0, 0, 0); // Görev tarihinin başlangıcı
                 if (taskDate >= thirtyDaysAgo && taskDate <= today && task.status === TASK_STATUSES.COMPLETED) {
                     totalDistanceLast30Days += task.distance;
                 }
@@ -202,55 +205,179 @@ function populateDriverSelect() {
 
 /**
  * En uygun şoförü seçmek için algoritma.
- * Son 30 gün içindeki toplam kat edilen mesafeyi dikkate alır.
- * En az mesafe kat eden şoförü tercih eder.
- * Ayrıca, Bekliyor veya Yolda durumu olan şoförleri de göz önünde bulundurur.
+ * Son 30 gün içindeki toplam kat edilen mesafeyi ve son görev tipini dikkate alır.
+ * En az mesafe kat eden şoförü tercih ederken, eğer atanacak görev yakın mesafe ise
+ * bir gün önce uzak mesafe görevi yapmış şoförlere öncelik verir.
+ * Ayrıca, yakın görevler için aynı şoföre üst üste yakın görev atanmasını mümkünse önlemeye çalışır.
+ * Uzak görevlerde ise kilometreleri yakın şoförlerden son görevi yakın olanı tercih eder.
+ *
  * @param {number} currentTaskDistance - Atanacak görevin mesafesi (km).
+ * @param {string} currentTaskType - Atanacak görevin tipi ('yakın' veya 'uzak').
  * @returns {Object|null} Atanacak en uygun şoför nesnesi veya bulunamazsa null.
  */
-function findBestDriverForTask(currentTaskDistance) {
+function findBestDriverForTask(currentTaskDistance, currentTaskType) {
     if (drivers.length === 0) {
         return null;
     }
 
     const today = new Date();
+    today.setHours(0, 0, 0, 0); // Bugünün başlangıcı
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1); // Dünün başlangıcı
+
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);
-
-    let bestDriver = null;
-    let minDistanceInLast30Days = Infinity;
+    thirtyDaysAgo.setHours(0, 0, 0, 0); // 30 gün öncenin başlangıcı
 
     // Sadece Bekliyor veya Yolda görevi olmayan şoförleri filtrele
-    const availableDrivers = drivers.filter(driver =>
+    let availableDrivers = drivers.filter(driver =>
         !driver.taskHistory.some(task =>
             task.status === TASK_STATUSES.PENDING || task.status === TASK_STATUSES.ON_THE_WAY
         )
     );
 
-    // Eğer aktif görevi olmayan şoförler varsa onları değerlendir, yoksa tüm şoförlere bak
-    let driversToEvaluate = availableDrivers.length > 0 ? availableDrivers : drivers;
+    if (availableDrivers.length === 0) {
+        return null; // Müsait şoför yok
+    }
 
-    driversToEvaluate.forEach(driver => {
+    // Her şoför için son 30 gün toplam mesafesini ve son görev bilgisini hesapla
+    const driverScores = availableDrivers.map(driver => {
         let totalDistanceLast30Days = 0;
+        let lastCompletedTask = null;
+        let lastCompletedTaskDate = null;
+        let lastCompletedTaskType = null;
 
         if (driver.taskHistory) {
+            // Sadece tamamlanmış görevleri al ve en yeniden eskiye sırala
+            const completedTasks = driver.taskHistory.filter(task => task.status === TASK_STATUSES.COMPLETED);
+            completedTasks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+            if (completedTasks.length > 0) {
+                lastCompletedTask = completedTasks[0];
+                lastCompletedTaskDate = new Date(lastCompletedTask.date);
+                lastCompletedTaskDate.setHours(0, 0, 0, 0); // Tarih karşılaştırması için sadece günü al
+                lastCompletedTaskType = lastCompletedTask.type;
+            }
+
+            // Son 30 gün toplam kilometreyi hesapla
             driver.taskHistory.forEach(task => {
                 const taskDate = new Date(task.date);
-                // Sadece TAMAMLANMIŞ görevlerin kilometresini hesaba kat
+                taskDate.setHours(0, 0, 0, 0); // Görev tarihinin başlangıcı
                 if (taskDate >= thirtyDaysAgo && taskDate <= today && task.status === TASK_STATUSES.COMPLETED) {
                     totalDistanceLast30Days += task.distance;
                 }
             });
         }
 
-        if (totalDistanceLast30Days < minDistanceInLast30Days) {
-            minDistanceInLast30Days = totalDistanceLast30Days;
-            bestDriver = driver;
-        }
+        return {
+            driver: driver,
+            totalDistanceLast30Days: totalDistanceLast30Days,
+            lastCompletedTask: lastCompletedTask,
+            lastCompletedTaskDate: lastCompletedTaskDate,
+            lastCompletedTaskType: lastCompletedTaskType
+        };
     });
 
-    return bestDriver;
+    let bestDriver = null;
+
+    if (currentTaskType === 'yakın') {
+        // Yeni kural: Aynı şoföre üst üste yakın görev atanmasını mümkünse önle.
+        // Öncelik sıralaması:
+        // 1. Dün uzak görev yapmış şoförler.
+        // 2. Kilometreleri yakın ve son görevi uzak olanlar.
+        // 3. Son tamamlanan görevi bugün yakın olmayanlar (1 ve 2. önceliktekiler hariç).
+        // 4. Son tamamlanan görevi bugün yakın olanlar (son çare).
+
+        // Müsait şoförler arasındaki minimum toplam kilometreyi bul
+        const minDistanceOverall = driverScores.length > 0
+            ? Math.min(...driverScores.map(score => score.totalDistanceLast30Days))
+            : 0;
+
+        // **1. Öncelik: Dün uzak görev yapmış şoförler**
+        const yesterdayFarDrivers = driverScores.filter(score => {
+            return score.lastCompletedTask &&
+                   score.lastCompletedTaskType === 'uzak' &&
+                   score.lastCompletedTaskDate &&
+                   score.lastCompletedTaskDate.getTime() === yesterday.getTime();
+        }).sort((a, b) => a.totalDistanceLast30Days - b.totalDistanceLast30Days); // En az km yapana öncelik
+
+        if (yesterdayFarDrivers.length > 0) {
+            bestDriver = yesterdayFarDrivers[0].driver;
+        } else {
+            // **2. Öncelik: Kilometreleri yakın (0-100 km fark) ve son görevi uzak olan şoförler**
+            const closeKmAndLastFarDrivers = driverScores.filter(score => {
+                const isCloseKm = score.totalDistanceLast30Days <= (minDistanceOverall + 100);
+                const isLastTaskFar = score.lastCompletedTaskType === 'uzak';
+                return isCloseKm && isLastTaskFar;
+            }).sort((a, b) => a.totalDistanceLast30Days - b.totalDistanceLast30Days); // En az km yapana öncelik
+
+            if (closeKmAndLastFarDrivers.length > 0) {
+                bestDriver = closeKmAndLastFarDrivers[0].driver;
+            } else {
+                // **3. Öncelik: Son görevi bugün yakın olmayan şoförler**
+                const notLastTaskCloseAndToday = driverScores.filter(score => {
+                    const isLastTaskCloseAndToday = score.lastCompletedTask &&
+                                                    score.lastCompletedTaskType === 'yakın' &&
+                                                    score.lastCompletedTaskDate &&
+                                                    score.lastCompletedTaskDate.getTime() === today.getTime();
+                    return !isLastTaskCloseAndToday; // Yani son görevi ya uzak ya da yakın ama bugün değil
+                }).sort((a, b) => a.totalDistanceLast30Days - b.totalDistanceLast30Days); // En az km yapana öncelik
+
+                if (notLastTaskCloseAndToday.length > 0) {
+                    bestDriver = notLastTaskCloseAndToday[0].driver;
+                } else {
+                    // **4. Öncelik (Son Çare): Tüm şoförlerin son görevi bugün yakın ise**
+                    // Genel olarak en az km yapmış olanı seç (burada başka seçenek kalmaz)
+                    driverScores.sort((a, b) => a.totalDistanceLast30Days - b.totalDistanceLast30Days);
+                    bestDriver = driverScores[0].driver;
+                }
+            }
+        }
+        return bestDriver;
+
+    } else { // currentTaskType === 'uzak'
+        // Uzak görevler için geliştirilmiş öncelik sıralaması:
+        // 1. En düşük km'ye sahip şoförün 100km yakını içindeki şoförlerden, son görevi 'yakın' olanlar.
+        // 2. Eğer 1. kritere uyan yoksa, genel olarak en az km yapmış şoför.
+
+        // Müsait şoförler arasındaki minimum toplam kilometreyi bul
+        const minDistanceOverall = driverScores.length > 0
+            ? Math.min(...driverScores.map(score => score.totalDistanceLast30Days))
+            : 0;
+
+        // Şoförleri, ana öncelik sırasına göre sırala:
+        // 1. Önce, son 30 gün toplam mesafesi genel minimumun 100km yakınında olan ve son görevi 'yakın' olanlar.
+        // 2. Sonra, diğer şoförler (yani son görevi uzak olanlar veya kilometre farkı 100km'den fazla olanlar).
+        driverScores.sort((a, b) => {
+            const aIsLastCloseAndNearMinKm = a.lastCompletedTaskType === 'yakın' && a.totalDistanceLast30Days <= (minDistanceOverall + 100);
+            const bIsLastCloseAndNearMinKm = b.lastCompletedTaskType === 'yakın' && b.totalDistanceLast30Days <= (minDistanceOverall + 100);
+
+            // Eğer A, hem son görevi yakın hem de km'si düşük aralıktaysa ve B değilse, A önde.
+            if (aIsLastCloseAndNearMinKm && !bIsLastCloseAndNearMinKm) {
+                return -1;
+            }
+            // Eğer B, hem son görevi yakın hem de km'si düşük aralıktaysa ve A değilse, B önde.
+            if (!aIsLastCloseAndNearMinKm && bIsLastCloseAndNearMinKm) {
+                return 1;
+            }
+
+            // Eğer ikisi de aynı kategoriye giriyorsa (ikiside uygun veya ikiside uygun değil),
+            // veya ikisi de son görevi yakın değilse/kilometre aralığında değilse,
+            // sadece toplam kilometreye göre sırala (azdan çoğa).
+            const kmDiff = a.totalDistanceLast30Days - b.totalDistanceLast30Days;
+            if (kmDiff !== 0) {
+                return kmDiff;
+            }
+
+            // Kilometreler eşitse, alfabetik olarak sırala (varsayılan tie-breaker)
+            return a.driver.name.localeCompare(b.driver.name, 'tr', { sensitivity: 'base' });
+        });
+        
+        bestDriver = driverScores[0].driver; 
+        return bestDriver;
+    }
 }
+
 
 /**
  * Yeni görev atamasını yapar.
@@ -266,6 +393,7 @@ function assignNewTask(event) {
 
     let destinationToAssign = destinationInput;
     let distanceToAssign;
+    let taskType; // Yeni: Görev tipi de belirlenecek
 
     if (matchedLocationKey === "Diğer") {
         distanceToAssign = parseInt(taskDistanceManualInput.value, 10);
@@ -273,17 +401,15 @@ function assignNewTask(event) {
             alert("Lütfen 'Diğer' görev yeri için geçerli bir mesafe girin.");
             return;
         }
-        destinationToAssign = destinationInput;
-
+        taskType = distanceToAssign >= 60 ? 'uzak' : 'yakın'; // Uzak algısı 60 km ve üzeri
     } else if (matchedLocationKey) {
         distanceToAssign = predefinedTaskLocations[matchedLocationKey];
-        destinationToAssign = matchedLocationKey;
+        taskType = distanceToAssign >= 60 ? 'uzak' : 'yakın'; // Uzak algısı 60 km ve üzeri
+        destinationToAssign = matchedLocationKey; // Eğer datalist'ten seçildiyse eşleşen key'i kullan
     } else {
         alert(`Girilen görev yeri ("${destinationInput}") tanımlı değil. Lütfen listeden bir yer girin veya 'Diğer' seçeneğini kullanarak mesafeyi manuel girin: \n\n${Object.keys(predefinedTaskLocations).join(', ')}`);
         return;
     }
-
-    const taskType = distanceToAssign >= 100 ? 'uzak' : 'yakın';
 
     let assignedDriver = null;
     const selectedDriverId = driverSelect.value; // Seçilen şoförün ID'sini al
@@ -305,7 +431,8 @@ function assignNewTask(event) {
         }
     } else {
         // Şoför seçilmediyse otomatik olarak en uygun şoförü bul
-        assignedDriver = findBestDriverForTask(distanceToAssign);
+        // taskType'ı da findBestDriverForTask'a gönderiyoruz
+        assignedDriver = findBestDriverForTask(distanceToAssign, taskType);
     }
 
     if (assignedDriver) {
@@ -313,7 +440,7 @@ function assignNewTask(event) {
             id: Date.now().toString(), // Görevler için benzersiz ID
             destination: destinationToAssign,
             distance: distanceToAssign,
-            type: taskType,
+            type: taskType, // Görev tipini de kaydet
             date: new Date().toISOString().split('T')[0],
             status: TASK_STATUSES.PENDING
         });
@@ -323,7 +450,7 @@ function assignNewTask(event) {
         assignmentResultDiv.innerHTML = `
             <p><strong>Görev Atandı:</strong> ${destinationToAssign} (${distanceToAssign} km - ${taskType})</p>
             <p><strong>Atanan Şoför:</strong> ${assignedDriver.name} (${assignedDriver.pickupId})</p>
-            ${selectedDriverId ? '<p>Şoför manuel olarak seçildi.</p>' : '<p>En az mesafe kat eden şoför otomatik seçildi.</p>'}
+            ${selectedDriverId ? '<p>Şoför manuel olarak seçildi.</p>' : '<p>En uygun şoför otomatik seçildi.</p>'}
             <p>Şoförün güncel görev geçmişi güncellendi.</p>
         `;
         renderTaskHistory(); // Görev geçmişini ve durum tablolarını güncelle, bu da raporları güncelleyecek
@@ -368,10 +495,10 @@ function editTask(driverId, taskId) {
             return;
         }
         updatedDistance = manualDist;
-        updatedTaskType = updatedDistance >= 100 ? 'uzak' : 'yakın';
+        updatedTaskType = updatedDistance >= 60 ? 'uzak' : 'yakın'; // Uzak algısı 60 km ve üzeri
     } else if (newMatchedLocationKey) {
         updatedDistance = predefinedTaskLocations[newMatchedLocationKey];
-        updatedTaskType = updatedDistance >= 100 ? 'uzak' : 'yakın';
+        updatedTaskType = updatedDistance >= 60 ? 'uzak' : 'yakın'; // Uzak algısı 60 km ve üzeri
         newDestination = newMatchedLocationKey;
     } else {
         alert(`Geçerli bir görev yeri girmediniz veya girilen yer tanımlı değil. Tanımlı yerler: \n\n${Object.keys(predefinedTaskLocations).join(', ')}`);
@@ -540,7 +667,7 @@ function renderTaskHistory() {
                 canceledTasksList.appendChild(li);
                 break;
             default:
-                // Tanımsız bir durum gelirse varsayılan olarak bekleyenlere ekle
+                // Tanımsız bir durum gel olursa varsayılan olarak bekleyenlere ekle
                 console.warn(`Bilinmeyen görev durumu: "${task.status}". Görev Bekleyenlere eklendi.`);
                 pendingTasksList.appendChild(li);
         }
@@ -624,14 +751,17 @@ function renderDriverKmChart() {
     if (!ctx) return; // Canvas elementi yoksa fonksiyonu durdur
 
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);
+    thirtyDaysAgo.setHours(0, 0, 0, 0);
 
     const driverData = drivers.map(driver => {
         let totalDistance = 0;
         if (driver.taskHistory) {
             driver.taskHistory.forEach(task => {
                 const taskDate = new Date(task.date);
+                taskDate.setHours(0, 0, 0, 0);
                 if (taskDate >= thirtyDaysAgo && taskDate <= today && task.status === TASK_STATUSES.COMPLETED) {
                     totalDistance += task.distance;
                 }
@@ -854,119 +984,124 @@ function renderTaskLocationDensityChart() {
         }
     });
 }
-        // === Veri Yönetimi Fonksiyonları ===
 
-/**
- * Belirli bir tarihten eski, tamamlanmış veya iptal edilmiş görevleri temizler.
- */
-function cleanOldTasks() {
-    const archiveDateInput = document.getElementById('archive-date');
-    const selectedDateString = archiveDateInput.value;
 
-    if (!selectedDateString) {
-        alert("Lütfen temizleme için bir tarih seçin.");
-        return;
-    }
+// === Veri Yönetimi Fonksiyonları ===
 
-    const cleanUntilDate = new Date(selectedDateString);
-    cleanUntilDate.setHours(0, 0, 0, 0); // Seçilen günün başlangıcını al
+    /**
+     * Belirli bir tarihten eski, tamamlanmış veya iptal edilmiş görevleri temizler.
+     */
+    function cleanOldTasks() {
+        const archiveDateInput = document.getElementById('archive-date');
+        const selectedDateString = archiveDateInput.value;
 
-    if (!confirm(`Seçilen tarih olan ${selectedDateString} tarihinden önceki tüm 'Tamamlandı' ve 'İptal Edildi' görevleri silmek istediğinizden emin misiniz? Bu işlem geri alınamaz!`)) {
-        return;
-    }
-
-    let cleanedCount = 0;
-    drivers.forEach(driver => {
-        const initialTaskHistoryLength = driver.taskHistory.length;
-        driver.taskHistory = driver.taskHistory.filter(task => {
-            const taskDate = new Date(task.date);
-            taskDate.setHours(0, 0, 0, 0); // Görev tarihinin başlangıcını al
-
-            // Eğer görev tamamlanmış veya iptal edilmişse VE seçilen tarihten eskiyse sil
-            if ((task.status === TASK_STATUSES.COMPLETED || task.status === TASK_STATUSES.CANCELED) && taskDate < cleanUntilDate) {
-                cleanedCount++;
-                return false; // Bu görevi filtrele, yani sil
-            }
-            return true; // Bu görevi tut
-        });
-        if (driver.taskHistory.length < initialTaskHistoryLength) {
-            // Sadece şoförün geçmişi değiştiyse localStorage'a kaydet
-            // Bu zaten genel saveData çağrısı ile hallediliyor, ama yine de not düşelim.
+        if (!selectedDateString) {
+            alert("Lütfen temizleme için bir tarih seçin.");
+            return;
         }
-    });
 
-    saveDataToLocalStorage(DRIVERS_STORAGE_KEY, drivers); // Değişiklikleri kaydet
-    renderDrivers(); // Şoför listesini güncelle
-    renderTaskHistory(); // Görev geçmişini ve raporları güncelle
+        const cleanUntilDate = new Date(selectedDateString);
+        cleanUntilDate.setHours(0, 0, 0, 0); // Seçilen günün başlangıcını al
 
-    alert(`${cleanedCount} adet eski görev başarıyla temizlendi.`);
+        if (!confirm(`Seçilen tarih olan ${selectedDateString} tarihinden önceki tüm 'Tamamlandı' ve 'İptal Edildi' görevleri silmek istediğinizden emin misiniz? Bu işlem geri alınamaz!`)) {
+            return;
+        }
 
-    // Tarih seçiciyi varsayılan değere sıfırla (isteğe bağlı)
-    archiveDateInput.value = '';
-}
+        let cleanedCount = 0;
+        drivers.forEach(driver => {
+            const initialTaskHistoryLength = driver.taskHistory.length;
+            driver.taskHistory = driver.taskHistory.filter(task => {
+                const taskDate = new Date(task.date);
+                taskDate.setHours(0, 0, 0, 0); // Görev tarihinin başlangıcını al
 
-
-
-// === Olay Dinleyicileri ve Başlangıç Yüklemesi ===
-document.addEventListener('DOMContentLoaded', () => {   
-    // Sayfa yüklendiğinde şoförleri localStorage'dan yükle
-    const storedDrivers = loadDataFromLocalStorage(DRIVERS_STORAGE_KEY);
-    if (storedDrivers.length > 0) {
-        // Eğer localStorage'da veri varsa, başlangıçtaki drivers dizisini temizle
-        // ve localStorage'daki verilerle doldur.
-        drivers.splice(0, drivers.length);
-        storedDrivers.forEach(driver => {
-            if (driver.taskHistory) {
-                driver.taskHistory.forEach(task => {
-                    if (!task.status) {
-                        task.status = TASK_STATUSES.PENDING;
-                    }
-                    // Eğer görev ID'si yoksa otomatik ID ata
-                    if (!task.id) {
-                        task.id = Date.now().toString() + Math.random().toString(36).substring(2, 9); // Benzersiz bir ID oluştur
-                    }
-                    
-                });
+                // Eğer görev tamamlanmış veya iptal edilmişse VE seçilen tarihten eskiyse sil
+                if ((task.status === TASK_STATUSES.COMPLETED || task.status === TASK_STATUSES.CANCELED) && taskDate < cleanUntilDate) {
+                    cleanedCount++;
+                    return false; // Bu görevi filtrele, yani sil
+                }
+                return true; // Bu görevi tut
+            });
+            if (driver.taskHistory.length < initialTaskHistoryLength) {
+                // Sadece şoförün geçmişi değiştiyse localStorage'a kaydet
+                // Bu zaten genel saveData çağrısı ile hallediliyor, ama yine de not düşelim.
             }
         });
-        drivers.push(...storedDrivers);
+
+        saveDataToLocalStorage(DRIVERS_STORAGE_KEY, drivers); // Değişiklikleri kaydet
+        renderDrivers(); // Şoför listesini güncelle
+        renderTaskHistory(); // Görev geçmişini ve raporları güncelle
+
+        alert(`${cleanedCount} adet eski görev başarıyla temizlendi.`);
+
+        // Tarih seçiciyi varsayılan değere sıfırla (isteğe bağlı)
+        archiveDateInput.value = '';
     }
 
-    renderDrivers(); // Şoförleri ekranda göster
-    renderTaskHistory(); // Geçmiş görevleri göster (bu da tüm raporları güncelleyecek)
-    populateLocationDatalist(); // Lokasyon önerilerini datalist'e doldur
-    populateDriverSelect(); // YENİ: Şoför seçim kutusunu doldur
-    
-    // addDriverBtn kaldırıldığı için bu olay dinleyici kaldırıldı.
-    // addDriverBtn.addEventListener('click', addDriver);
 
-    // Görev atama formuna gönderme olayı
-    taskForm.addEventListener('submit', assignNewTask);
 
-    // Manuel mesafe grubu göster/gizle olayı
-    taskDestinationInput.addEventListener('input', () => {
-        const destinationValue = taskDestinationInput.value.trim().toLowerCase();
-        if (destinationValue === "diğer") {
-            manualDistanceGroup.style.display = 'block';
-            taskDistanceManualInput.setAttribute('required', 'true');
-        } else {
-            manualDistanceGroup.style.display = 'none';
-            taskDistanceManualInput.removeAttribute('required');
-            taskDistanceManualInput.value = '';
+    // === Olay Dinleyicileri ve Başlangıç Yüklemesi ===
+    document.addEventListener('DOMContentLoaded', () => {   
+        // Sayfa yüklendiğinde şoförleri localStorage'dan yükle
+        const storedDrivers = loadDataFromLocalStorage(DRIVERS_STORAGE_KEY);
+        if (storedDrivers.length > 0) {
+            // Eğer localStorage'da veri varsa, başlangıçtaki drivers dizisini temizle
+            // ve localStorage'daki verilerle doldur.
+            drivers.splice(0, drivers.length);
+            storedDrivers.forEach(driver => {
+                if (driver.taskHistory) {
+                    driver.taskHistory.forEach(task => {
+                        if (!task.status) {
+                            task.status = TASK_STATUSES.PENDING;
+                        }
+                        // Eğer görev ID'si yoksa otomatik ID ata
+                        if (!task.id) {
+                            task.id = Date.now().toString() + Math.random().toString(36).substring(2, 9); // Benzersiz bir ID oluştur
+                        }
+                        // Görev tipini de ekleyin, eski görevlerde olmayabilir
+                        if (!task.type) {
+                            task.type = task.distance >= 60 ? 'uzak' : 'yakın'; // Uzak algısı 60 km ve üzeri
+                        }
+                    });
+                }
+            });
+            drivers.push(...storedDrivers);
+        }
+
+        renderDrivers(); // Şoförleri ekranda göster
+        renderTaskHistory(); // Geçmiş görevleri göster (bu da tüm raporları güncelleyecek)
+        populateLocationDatalist(); // Lokasyon önerilerini datalist'e doldur
+        populateDriverSelect(); // YENİ: Şoför seçim kutusunu doldur
+        
+        // addDriverBtn kaldırıldığı için bu olay dinleyici kaldırıldı.
+        // addDriverBtn.addEventListener('click', addDriver);
+
+        // Görev atama formuna gönderme olayı
+        taskForm.addEventListener('submit', assignNewTask);
+
+        // Manuel mesafe grubu göster/gizle olayı
+        taskDestinationInput.addEventListener('input', () => {
+            const destinationValue = taskDestinationInput.value.trim().toLowerCase();
+            if (destinationValue === "diğer") {
+                manualDistanceGroup.style.display = 'block';
+                taskDistanceManualInput.setAttribute('required', 'true');
+            } else {
+                manualDistanceGroup.style.display = 'none';
+                taskDistanceManualInput.removeAttribute('required');
+                taskDistanceManualInput.value = '';
+            }
+        });
+        
+        // Şoför seçimini iptal et butonuna tıklama olayı
+        if (clearDriverSelectionBtn) { // Butonun varlığını kontrol et
+            clearDriverSelectionBtn.addEventListener('click', () => {
+                driverSelect.value = ''; // Seçimi sıfırla
+                assignmentResultDiv.innerHTML = '<p>Şoför seçimi iptal edildi. Görev otomatik olarak en uygun şoföre atanacaktır.</p>';
+            });
+        }
+
+        // Eski görevleri temizle butonuna tıklama olayı
+        const cleanOldTasksBtn = document.getElementById('clean-old-tasks-btn');
+        if (cleanOldTasksBtn) {
+            cleanOldTasksBtn.addEventListener('click', cleanOldTasks);
         }
     });
-    
-    // Şoför seçimini iptal et butonuna tıklama olayı
-    if (clearDriverSelectionBtn) { // Butonun varlığını kontrol et
-        clearDriverSelectionBtn.addEventListener('click', () => {
-            driverSelect.value = ''; // Seçimi sıfırla
-            assignmentResultDiv.innerHTML = '<p>Şoför seçimi iptal edildi. Görev otomatik olarak en uygun şoföre atanacaktır.</p>';
-        });
-    }
-
-    // Eski görevleri temizle butonuna tıklama olayı
-    const cleanOldTasksBtn = document.getElementById('clean-old-tasks-btn');
-    if (cleanOldTasksBtn) {
-        cleanOldTasksBtn.addEventListener('click', cleanOldTasks);
-    }
-});
